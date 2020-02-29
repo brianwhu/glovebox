@@ -1,0 +1,76 @@
+#!/bin/env sh
+
+usage() {
+    echo -e "Usage: $(basename $1) [ l | m:<letter> | d | x | push | pull | save ]\n\tList (l), mount (m) or dismount (d/x) secure disks"
+}
+
+SDM=VeraCrypt.exe
+BOX=$(cygpath $USERPROFILE)/Files/box
+HUB=box:box
+PIT=${pit:-/cygdrive/g/SystemBackup}
+LOG=/var/log/rsync.log
+OPT="--log-file=$LOG -uacvzqrth"
+pull() {
+    mkdir -p "$BOX"
+    echo "Refreshing ..."
+    echo "[sdisk pull]" >>$LOG
+    rsync $OPT -e ssh "$HUB/" "$BOX"
+}
+push() {
+    echo "[sdisk push]" >>$LOG
+    rsync $OPT -e ssh "$BOX/" "$HUB"
+}
+save() {
+    if [ -d "$PIT" ]; then
+        for letter in $(ls -1 $BOX/*|sed 's/.*\/\(.\)[^/]*/\L\1/'); do
+            [ -d /cygdrive/${letter} ] && >&2 echo "*** ${letter}: busy." && return 1
+        done
+        echo "[sdisk save] -> $PIT" >>$LOG
+        rsync $OPT "$BOX" "$PIT" &
+    else
+        >&2 echo "*** '$PIT' not mounted. Assign variable pit=<path> to use an alternative location."
+    fi
+}
+if [[ $# -eq 1 ]]; then
+    SDM_CACHE=/tmp/sdisk-manager-path.txt
+    if [ ! -f $SDM_CACHE ]; then
+        >&2 echo "Looking up SDM ..."
+        ls -d "$(cygpath "$PROGRAMFILES")"*|xargs -I '{}' find '{}' -type f -iname $SDM 2>/dev/null >$SDM_CACHE
+    fi
+    SDM_EXEC=$(cat $SDM_CACHE)
+
+    case "$1" in
+    l)  ls -l $BOX
+        ;;
+    d)  if ! "$SDM_EXEC" /d /q /s; then echo ?; else push & fi
+        ;;
+    x)  if ! "$SDM_EXEC" /f /d /q /s; then echo ?; else push & fi
+        ;;
+    m:?)  #pull
+        letter=${1:2}
+        volume=$(ls -1 $BOX/[${letter,,}${letter^^}]* 2>/dev/null)
+        if [ "$volume" ]; then
+            if read -s -p "Password: " password; then
+                printf "\rMounting drive ${letter}: ..."
+                if ! "$SDM_EXEC" /l ${letter} /v $(cygpath -w "${volume}") /p "${password}" /q /s; then echo " failed"; fi
+            fi
+            printf "\n"
+        else
+            >&2 echo "*** Unknown drive ${letter}:"
+        fi
+        ;;
+    pull)
+        pull
+        ;;
+    push)
+        push
+        ;;
+    save)
+        save
+        ;;
+    *)  usage $0 && exit 1
+        ;;
+    esac
+else
+    usage $0
+fi
