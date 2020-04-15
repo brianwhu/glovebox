@@ -1,7 +1,7 @@
 #!/bin/env sh
 
 usage() {
-    echo -e "Usage: $(basename $1) [ l | m:<letter> | d | x | push | pull | save ]\n\tList (l), mount (m) or dismount (d/x) secure disks"
+    >&2 echo -e "Usage: $(basename $1) [ l | m:<letter> | d | x | push | pull | save ]\n\tList (l), mount (m) or dismount (d/x) secure disks"
 }
 
 SDM=VeraCrypt.exe
@@ -12,7 +12,7 @@ LOG=/var/log/rsync.log
 OPT="--log-file=$LOG -uacvzqrth"
 pull() {
     mkdir -p "$BOX"
-    echo "Refreshing ..."
+    >&2 echo "Refreshing ..."
     echo "[sdisk pull]" >>$LOG
     rsync $OPT -e ssh "$HUB/" "$BOX"
 }
@@ -40,11 +40,15 @@ if [[ $# -eq 1 ]]; then
     SDM_EXEC=$(cat $SDM_CACHE)
 
     case "$1" in
-    l)  ls -l $BOX
+    l)  for volume in $(ls -1 $BOX); do
+            letter="$(sed 's/\(.\).*/\L\1/' <<<"$volume"):"
+            [ -d /cygdrive/${letter:0:1} ] || letter="  "
+            echo "$letter    $volume"
+        done
         ;;
-    d)  if ! "$SDM_EXEC" /d /q /s; then echo ?; else push & fi
+    d)  if ! "$SDM_EXEC" /d /q /s; then >&2 echo ?; else push & fi
         ;;
-    x)  if ! "$SDM_EXEC" /f /d /q /s; then echo ?; else push & fi
+    x)  if ! "$SDM_EXEC" /f /d /q /s; then >&2 echo ?; else push & fi
         ;;
     m:?)  #pull
         letter=${1:2}
@@ -52,7 +56,7 @@ if [[ $# -eq 1 ]]; then
         if [ "$volume" ]; then
             if read -s -p "Password: " password; then
                 printf "\rMounting drive ${letter}: ..."
-                if ! "$SDM_EXEC" /l ${letter} /v $(cygpath -w "${volume}") /p "${password}" /q /s; then echo " failed"; fi
+                if ! "$SDM_EXEC" /l ${letter} /v $(cygpath -w "${volume}") /p "${password}" /q /s; then >&2 echo " failed"; fi
             fi
             printf "\n"
         else
