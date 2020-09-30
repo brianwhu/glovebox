@@ -9,7 +9,7 @@ BOX=$(cygpath $USERPROFILE)/Files/box
 HUB=box:box
 PIT=${pit:-/cygdrive/g/SystemBackup}
 LOG=/var/log/rsync.log
-OPT="--log-file=$LOG -uacvzqrth"
+OPT="--log-file=$LOG -acvzqrth"
 pull() {
     mkdir -p "$BOX"
     >&2 echo "Refreshing ..."
@@ -28,7 +28,7 @@ save() {
         echo "[sdisk save] -> $PIT" >>$LOG
         rsync $OPT "$BOX" "$PIT" &
     else
-        >&2 echo "*** '$PIT' not mounted. Assign variable pit=<path> to use an alternative location."
+        >&2 echo "*** '$PIT' not mounted. Set variable pit=<path> to use an alternative location."
     fi
 }
 if [[ $# -eq 1 ]]; then
